@@ -9,7 +9,6 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
-	"sync"
 	"time"
 )
 
@@ -39,6 +38,7 @@ func main() {
 	}
 	fmt.Println("Successfully Opened menu.json")
 	defer jsonFile.Close()
+
 	byteValue, _ := ioutil.ReadAll(jsonFile)
 
 	var dishes Dishes
@@ -51,23 +51,22 @@ func main() {
 		fmt.Println("Complexity: " + strconv.Itoa(dishes.Dishes[i].Complexity))
 		fmt.Println("CookingApparatus: " + dishes.Dishes[i].CookingApparatus)
 	}*/
-	var wg sync.WaitGroup
-	for i := 1; i <= 1000; i++ {
-		wg.Add(1)
 
-		go func() {
-			defer wg.Done()
-			worker(dishes)
-		}()
-	}
-	wg.Wait()
+	go func() {
+		for {
+			go func() {
+				worker(dishes)
+			}()
+			time.Sleep(time.Second)
+		}
+	}()
 
-	http.HandleFunc("/distribution", test)
+	http.HandleFunc("/distribution", HandleRequest)
+	http.HandleFunc("/test", TestRequest)
 	log.Fatal(http.ListenAndServe(":8081", nil))
 }
 func worker(dishes Dishes) {
 	order := createOrder(dishes)
-	time.Sleep(time.Second)
 	makeRequest(order)
 
 }
@@ -92,14 +91,16 @@ func makeRequest(b []byte) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		panic(err)
+		fmt.Println("skip the error")
+	} else {
+		defer resp.Body.Close()
+		fmt.Println(string(b))
+		fmt.Println("Request sent")
 	}
-	defer resp.Body.Close()
-	fmt.Println(string(b))
-	fmt.Println("Request sent")
+
 }
 
-func test(rw http.ResponseWriter, req *http.Request) {
+func HandleRequest(rw http.ResponseWriter, req *http.Request) {
 	decoder := json.NewDecoder(req.Body)
 	var order Order
 	err := decoder.Decode(&order)
@@ -108,6 +109,10 @@ func test(rw http.ResponseWriter, req *http.Request) {
 	}
 	fmt.Println("Request Handled")
 	log.Println(order)
+}
+
+func TestRequest(rw http.ResponseWriter, req *http.Request) {
+	fmt.Println("Test Request Handled")
 }
 
 func generateRandomNumber(min int, max int) int {
