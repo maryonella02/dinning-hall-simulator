@@ -2,13 +2,15 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"math/rand"
+	"math/big"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -26,12 +28,43 @@ type Dish struct {
 type Order struct {
 	ID         int   `json:"id"`
 	Items      []int `json:"items"`
+	TableID    int   `json:"table_id"`
+	WaiterID   int   `json:"waiter_id"`
 	Priority   int   `json:"priority"`
 	MaxWait    int   `json:"max_wait"`
 	PickUpTime int64 `json:"pick_up_time"`
 }
+type Table struct {
+	ID    int
+	State State
+}
+type State int
 
+const (
+	Free      = 1
+	WaitMenu  = 2
+	WaitOrder = 3
+)
+
+type Waiter struct {
+	ID int
+}
+
+const NumberOfTables = 4
+const NumberOfWaiters = 2
+
+type Orders struct {
+	sync.RWMutex
+	Orders []Order
+}
+
+var OrdersMap = Orders{Orders: make([]Order, 0)}
+
+var ratingSystem = NewRating()
+
+//var orderList *[]Orders
 func main() {
+
 	jsonFile, err := os.Open("menu.json")
 	if err != nil {
 		fmt.Println(err)
@@ -52,27 +85,76 @@ func main() {
 		fmt.Println("CookingApparatus: " + dishes.Dishes[i].CookingApparatus)
 	}*/
 
-	go func() {
-		for {
-			go func() {
-				worker(dishes)
-			}()
-			time.Sleep(time.Second)
-		}
-	}()
+	tables := generateTables(NumberOfTables)
+	serveTables(NumberOfWaiters, tables, dishes)
+	//if all tables are free, generate more busy tables
 
 	http.HandleFunc("/distribution", HandleRequest)
-	http.HandleFunc("/test", TestRequest)
 	log.Fatal(http.ListenAndServe(":8081", nil))
-}
-func worker(dishes Dishes) {
-	order := createOrder(dishes)
-	makeRequest(order)
 
 }
 
-func createOrder(dishes Dishes) []byte {
+func serveTables(nrOfWaiters int, tables []Table, dishes Dishes) {
+	for i := 0; i < nrOfWaiters; i++ {
+		waiter := &Waiter{ID: i + 1}
+		go getOrder(waiter, tables, dishes)
+		for len(OrdersMap.Orders) > 0 {
+			go giveOrder(waiter, tables)
+		}
+	}
+}
+
+func giveOrder(waiter *Waiter, tables []Table) {
+	for i := 0; i < len(tables); i++ {
+		if tables[i].State == 3 {
+			if IsServed(waiter.ID, tables[i].ID) {
+				tables[i].State = 1
+			}
+		}
+	}
+}
+
+func IsServed(waiterID int, tableID int) bool {
+	for i := 0; i < len(OrdersMap.Orders); i++ {
+		if waiterID == OrdersMap.Orders[i].WaiterID && tableID == OrdersMap.Orders[i].TableID {
+			DeleteOrderFromList(i)
+			rating := CalculateRating(OrdersMap.Orders[i])
+			fmt.Printf("%s = %d\n", "Order rating", rating)
+			ratingSystem.AddRating(rating)
+			fmt.Printf("%s = %f\n", "Rating overall", ratingSystem.ReturnRating())
+			return true
+		}
+	}
+	return false
+}
+
+func getOrder(waiter *Waiter, tables []Table, dishes Dishes) {
+	var rwMutex = &sync.RWMutex{}
+	for i := 0; i < len(tables); i++ {
+		if tables[i].State == 2 {
+			rwMutex.Lock()
+			order := createOrder(dishes, tables[i].ID, waiter.ID)
+			makeRequest(order)
+			tables[i].State = 3
+			rwMutex.Unlock()
+		}
+	}
+}
+func generateTables(nrOfTables int) []Table {
+	tables := make([]Table, nrOfTables)
+	for i := 0; i < nrOfTables; i++ {
+		state := generateRandomNumber(1, 2)
+		table := &Table{ID: i + 1,
+			State: State(state)}
+		tables[i] = *table
+	}
+	return tables
+}
+
+func createOrder(dishes Dishes, tableId int, waiterId int) []byte {
 	order := &Order{ID: generateRandomNumber(1, 100000),
+		TableID:    tableId,
+		WaiterID:   waiterId,
 		Items:      generateItems(),
 		Priority:   generatePriority(),
 		MaxWait:    getMaxWaitTime(dishes),
@@ -109,18 +191,30 @@ func HandleRequest(rw http.ResponseWriter, req *http.Request) {
 	}
 	fmt.Println("Request Handled")
 	log.Println(order)
+	AddOrderToList(order)
+
 }
 
-func TestRequest(rw http.ResponseWriter, req *http.Request) {
-	fmt.Println("Test Request Handled")
+func AddOrderToList(order Order) {
+	OrdersMap.Lock()
+	defer OrdersMap.Unlock()
+	OrdersMap.Orders = append(OrdersMap.Orders, order)
 }
 
-func generateRandomNumber(min int, max int) int {
-	digit := 0
+func DeleteOrderFromList(index int) {
+	OrdersMap.Lock()
+	defer OrdersMap.Unlock()
+	OrdersMap.Orders = append(OrdersMap.Orders[:index], OrdersMap.Orders[index+1:]...)
+}
 
-	rand.Seed(time.Now().UnixNano())
-	digit = min + rand.Intn(max-min)
-	return digit
+func generateRandomNumber(min, max int64) int {
+
+	bg := big.NewInt(max + 1 - min)
+	n, err := rand.Int(rand.Reader, bg)
+	if err != nil {
+		panic(err)
+	}
+	return int(n.Int64() + min)
 }
 
 func generateItems() []int {
