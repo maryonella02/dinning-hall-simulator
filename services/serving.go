@@ -7,34 +7,23 @@ import (
 	"dinning-hall/utils"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/big"
 	"net/http"
 	"time"
 )
-
-// func generateTables(nrOfTables int) []models.Table {
-// 	tables := make([]models.Table, nrOfTables)
-// 	for i := 0; i < nrOfTables; i++ {
-// 		state := generateRandomNumber(1, 2)
-// 		table := &models.Table{ID: i + 1,
-// 			State: models.TableState(state)}
-// 		tables[i] = *table
-// 	}
-// 	return tables
-// }
 
 var OrdersMap = models.Orders{Orders: make([]models.Order, 0)}
 
 func GenerateInitialTables(nrOfTables int) models.Tables {
 	tablesSlice := make([]*models.Table, nrOfTables)
 	for i := 0; i < nrOfTables; i++ {
-		// state := generateRandomNumber(1, 2)
 		tablesSlice[i] = &models.Table{ID: i + 1,
 			State: models.TableState(1)}
 	}
 
 	allTables := models.Tables{AllTables: tablesSlice}
-	fmt.Println("Generetad ", 4, "Tables")
+	log.Println("Generated ", len(tablesSlice), "Tables")
 	return allTables
 }
 
@@ -46,29 +35,28 @@ func ServeTables(nrOfWaiters int, tables *models.Tables, dishes models.Dishes) {
 }
 
 func getOrder(waiter *models.Waiter, tables *models.Tables, dishes models.Dishes) {
-	fmt.Println("Serving as ", waiter.ID, "waiter")
+	log.Println("Serving as ", waiter.ID, "waiter")
 	for {
 		for idx, table := range (*tables).AllTables {
 			table.Lock()
 			if table.State == 2 {
 				order := createOrder(dishes, table.ID, waiter.ID)
-				fmt.Println("Order created ", order)
+				log.Println("Order created!")
 				requested := makeRequest(order)
 				if requested {
 					table.State = 3
 				}
 			}
 			if table.State == 3 {
-				fmt.Println("Verify if served")
+				log.Println("Verify if served")
 				if IsServed(waiter.ID, (*tables).AllTables[idx].ID) {
-					fmt.Println("Served for ", table.ID)
+					log.Println("Served for table", table.ID)
 					table.State = 1
 				}
 			}
 			table.Unlock()
 			time.Sleep(1 * time.Second)
 		}
-
 	}
 
 }
@@ -86,7 +74,6 @@ func IsServed(waiterID int, tableID int) bool {
 			return true
 		}
 	}
-
 	return false
 }
 func AddOrderToList(order models.Order) {
@@ -115,7 +102,6 @@ func createOrder(dishes models.Dishes, tableId int, waiterId int) []byte {
 
 }
 func generateRandomNumber(min, max int64) int {
-
 	bg := big.NewInt(max + 1 - min)
 	n, err := rand.Int(rand.Reader, bg)
 	if err != nil {

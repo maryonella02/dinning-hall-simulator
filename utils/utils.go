@@ -3,7 +3,6 @@ package utils
 import (
 	"dinning-hall/models"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -14,9 +13,9 @@ func ReadMenus(filename string) models.Dishes {
 
 	jsonFile, err := os.Open(filename)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
-	fmt.Printf("Successfully Opened %s \n", filename)
+	log.Printf("Successfully Opened %s \n", filename)
 
 	defer jsonFile.Close()
 
