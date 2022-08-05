@@ -2,7 +2,7 @@ package services
 
 import (
 	"dinning-hall/models"
-	"fmt"
+	"log"
 	"time"
 )
 
@@ -12,7 +12,7 @@ func OccupyTables(tables *models.Tables) {
 			table.Lock()
 			if table.State == 1 {
 				table.State = 2
-				fmt.Println("As a client I occupied table nr ", table.ID)
+				log.Println("As a client I occupied table nr ", table.ID)
 			}
 			table.Unlock()
 			time.Sleep(1 * time.Second)

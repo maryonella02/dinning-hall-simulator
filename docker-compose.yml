@@ -7,17 +7,3 @@ services:
     ports:
       - "8081:8081"
     network_mode: "host"
-    deploy:
-      replicas: ${SERVICE_SCALE:-1}
-      restart_policy:
-        condition: on-failure
-        delay: 8s
-        max_attempts: 3
-      update_config:
-        parallelism: 1
-        order: start-first
-        failure_action: rollback
-        delay: 10s
-      rollback_config:
-        parallelism: 0
-        order: stop-first

@@ -2,7 +2,7 @@ package services
 
 import (
 	"dinning-hall/models"
-	"fmt"
+	"log"
 	"time"
 )
 
@@ -39,7 +39,7 @@ func CalculateRating(order models.Order) int {
 
 	maxWait := float64(order.MaxWait) * Multiplier
 
-	fmt.Printf("Total Order Preparing Time : %f : Max Wait : %f\n", totalOrderPreparingTime, maxWait)
+	log.Printf("Total Order Preparing Time : %f : Max Wait : %f\n", totalOrderPreparingTime, maxWait)
 
 	if totalOrderPreparingTime < maxWait {
 		return 5
